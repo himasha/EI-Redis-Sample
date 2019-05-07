@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api context="/userinfo" name="UserInfoAPI" xmlns="http://ws.apache.org/ns/synapse">
+    <resource methods="GET" uri-template="/user/{id}">
+        <inSequence>
+            <property expression="get-property('uri.var.id')" name="redisKey" scope="default" type="STRING"/>
+            <redis.init>
+                <redisHost>localhost</redisHost>
+                <redisPort>6379</redisPort>
+            </redis.init>
+            <redis.exists>
+                <redisKey>{$ctx:redisKey}</redisKey>
+            </redis.exists>
+            <switch source="json-eval($.output)">
+                <case regex="false">
+                    <log level="custom">
+                        <property name="FOUND" value="NOT FOUND IN CACHE"/>
+                    </log>
+                    <property action="remove" name="REST_URL_POSTFIX" scope="axis2"/>
+                    <property expression="get-property('uri.var.id')" name="uri.var.userID" scope="default" type="STRING"/>
+                    <call>
+                        <endpoint name="HTTPEndpoint">
+                            <http method="get" uri-template="http://localhost:9090/user/info/{uri.var.userID}"/>
+                        </endpoint>
+                    </call>
+                    <log level="custom">
+                        <property expression="json-eval($.result)" name="cachedUser"/>
+                    </log>
+                    <property expression="json-eval($.result)" name="cachedUser" scope="default" type="STRING"/>
+                    <filter xpath="get-property('cachedUser')!='0'">
+                        <then>
+                            <log level="custom">
+                                <property name="Flow" value="User does not exist in cache."/>
+                            </log>
+                            <redis.sadd>
+                                <redisKey>{$ctx:redisKey}</redisKey>
+                                <redisMembers>{$ctx:cachedUser}</redisMembers>
+                            </redis.sadd>
+                            <payloadFactory media-type="xml">
+                                <format>
+                                    <Result>$1</Result>
+                                </format>
+                                <args>
+                                    <arg evaluator="xml" expression="get-property('cachedUser')"/>
+                                </args>
+                            </payloadFactory>
+                        </then>
+                        <else>
+                            <log level="custom">
+                                <property name="Flow" value="User does not exist in the system."/>
+                            </log>
+                            <payloadFactory media-type="xml">
+                                <format>
+                                    <Result>$1</Result>
+                                </format>
+                                <args>
+                                    <arg evaluator="xml" expression="get-property('cachedUser')"/>
+                                </args>
+                            </payloadFactory>
+                        </else>
+                    </filter>
+                </case>
+                <default>
+                    <redis.sMembers>
+                        <redisKey>{$ctx:redisKey}</redisKey>
+                    </redis.sMembers>
+                </default>
+            </switch>
+            <respond/>
+        </inSequence>
+        <outSequence/>
+        <faultSequence/>
+    </resource>
+</api>

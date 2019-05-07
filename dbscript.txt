@@ -1,0 +1,14 @@
+==================
+#Create a databse and a table in Mysql as below.
+
+Create database userdb;
+use userdb;
+Create table user ( id int,name varchar(255));
+
+#Insert some sample data to the created table as below. 
+
+insert into user(id,name)values(1001,'john');
+insert into user(id,name)values(1002,'emma');
+insert into user(id,name)values(1003,'peter');
+insert into user(id,name)values(1004,'Sam');
+insert into user(id,name)values(1005,'Danny');
